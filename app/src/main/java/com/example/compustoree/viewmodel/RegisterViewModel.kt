@@ -1,53 +1,53 @@
 package com.example.compustoree.viewmodel
 
-
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.compustoree.model.User
+import com.example.compustoree.model.RegisterRequest // ✅ Pastikan Import ini benar
 import com.example.compustoree.service.RetrofitClient
 import kotlinx.coroutines.launch
 
 class RegisterViewModel : ViewModel() {
-    // Data Form
     var nama by mutableStateOf("")
     var email by mutableStateOf("")
+    var password by mutableStateOf("")
     var noHp by mutableStateOf("")
-    var alamat by mutableStateOf("")
 
-    // Status
     var isLoading by mutableStateOf(false)
     var message by mutableStateOf("")
 
+    // Fungsi register menerima parameter onSuccess
     fun register(onSuccess: () -> Unit) {
-        if (nama.isEmpty() || email.isEmpty()) {
-            message = "Nama dan Email wajib diisi"
+        if (nama.isEmpty() || email.isEmpty() || password.isEmpty() || noHp.isEmpty()) {
+            message = "Semua kolom harus diisi!"
             return
         }
 
         viewModelScope.launch {
             isLoading = true
             try {
-                // Siapkan data user baru
-                // Note: Password default di server saat ini 'user123' (sesuai server.js kita kemarin)
-                val newUser = User(
-                    email = email,
+                // ✅ PERBAIKAN DI SINI:
+                // Gunakan 'RegisterRequest', JANGAN 'User'
+                val request = RegisterRequest(
                     nama = nama,
-                    noHp = noHp,
-                    alamat = alamat,
-                    role = "user"
+                    email = email,
+                    password = password,
+                    noHp = noHp
                 )
 
-                // Kirim ke server
-                val response = RetrofitClient.instance.updateUser(email, newUser)
+                // Kirim request ke API
+                val response = RetrofitClient.instance.register(request)
 
-                message = "Registrasi Berhasil!"
+                message = response.message
+
+                // Jika sukses, panggil navigasi
                 onSuccess()
 
             } catch (e: Exception) {
-                message = "Gagal: ${e.message}"
+                message = "Registrasi Gagal: ${e.message}"
+                e.printStackTrace()
             } finally {
                 isLoading = false
             }

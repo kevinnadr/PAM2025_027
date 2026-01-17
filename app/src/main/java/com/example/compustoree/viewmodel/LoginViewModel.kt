@@ -1,46 +1,51 @@
 package com.example.compustoree.viewmodel
 
-
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.compustoree.model.LoginRequest // ✅ Pastikan Import ini ada
 import com.example.compustoree.model.UserSession
 import com.example.compustoree.service.RetrofitClient
 import kotlinx.coroutines.launch
 
 class LoginViewModel : ViewModel() {
+
     var email by mutableStateOf("")
-    var password by mutableStateOf("") // Di real app, password harus dicek. Di sini kita simulasi dulu.
+    var password by mutableStateOf("")
 
     var isLoading by mutableStateOf(false)
-    var loginStatus by mutableStateOf("") // "Sukses" atau "Gagal"
+    var message by mutableStateOf("")
 
     fun login(onSuccess: () -> Unit) {
+        if (email.isEmpty() || password.isEmpty()) {
+            message = "Email dan Password harus diisi"
+            return
+        }
+
         viewModelScope.launch {
             isLoading = true
-            loginStatus = ""
             try {
-                // 1. Minta data user ke server berdasarkan email
-                val user = RetrofitClient.instance.getUserByEmail(email)
+                // ❌ KODE LAMA (Penyebab Error):
+                // val body = mapOf("email" to email, "password" to password)
 
-                // 2. Cek apakah user ada? (Server kita mengembalikan object kosong jika tidak ada)
-                if (user.email.isNotEmpty()) {
-                    // Cek Password Sederhana (Harusnya di server, tapi ini simulasi)
-                    // Kita anggap password selalu benar jika user ditemukan, atau Anda bisa cek manual:
-                    // if (password == "admin123" || password == "user123") { ... }
+                // ✅ KODE BARU (SOLUSI): Gunakan Data Class LoginRequest
+                val request = LoginRequest(email, password)
 
-                    // SIMPAN KE SESSION
-                    UserSession.currentUser = user
-                    loginStatus = "Login Berhasil!"
+                val response = RetrofitClient.instance.login(request)
+
+                if (response.user != null) {
+                    UserSession.currentUser = response.user
+                    message = "Login Berhasil"
                     onSuccess()
-
                 } else {
-                    loginStatus = "Email tidak terdaftar"
+                    message = "Login Gagal: User tidak ditemukan"
                 }
             } catch (e: Exception) {
-                loginStatus = "Error: ${e.message}"
+                // Menangani error koneksi atau password salah
+                message = "Login Gagal: Periksa Email/Password"
+                e.printStackTrace()
             } finally {
                 isLoading = false
             }

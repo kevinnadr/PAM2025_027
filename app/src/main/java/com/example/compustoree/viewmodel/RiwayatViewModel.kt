@@ -8,10 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.compustoree.model.RiwayatOrder
 import com.example.compustoree.model.UserSession
 import com.example.compustoree.service.RetrofitClient
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.IOException
 
+// State Pattern untuk Mengatur Tampilan UI (Loading, Sukses, Error)
 sealed interface RiwayatUiState {
     data class Success(val orders: List<RiwayatOrder>) : RiwayatUiState
     object Error : RiwayatUiState
@@ -20,27 +19,29 @@ sealed interface RiwayatUiState {
 
 class RiwayatViewModel : ViewModel() {
 
+    // Variable State Utama
     var uiState: RiwayatUiState by mutableStateOf(RiwayatUiState.Loading)
         private set
 
-    // Cek apakah Admin?
+    // Cek apakah yang login adalah Admin?
     val isAdmin = UserSession.currentUser?.role == "admin"
 
-    // Load data saat pertama kali
+    // 1. Fungsi Load Data (Pintar Membedakan User/Admin)
     fun loadData() {
         viewModelScope.launch {
-            uiState = RiwayatUiState.Loading
+            uiState = RiwayatUiState.Loading // Set status loading dulu
             try {
-                if (isAdmin) {
-                    // Jika Admin, ambil SEMUA data (dari endpoint transactions)
-                    val result = RetrofitClient.instance.getAllTransactions()
-                    uiState = RiwayatUiState.Success(result)
+                val result = if (isAdmin) {
+                    // Jika Admin: Panggil API Ambil SEMUA Transaksi
+                    RetrofitClient.instance.getAllTransactions()
                 } else {
-                    // Jika User, ambil data dia sendiri (dari endpoint orders?email=...)
+                    // Jika User Biasa: Panggil API Ambil Riwayat Sendiri
                     val email = UserSession.currentUser?.email
-                    val result = RetrofitClient.instance.getRiwayat(email)
-                    uiState = RiwayatUiState.Success(result)
+                    RetrofitClient.instance.getRiwayat(email)
                 }
+
+                // Sukses
+                uiState = RiwayatUiState.Success(result)
             } catch (e: Exception) {
                 e.printStackTrace()
                 uiState = RiwayatUiState.Error
@@ -48,34 +49,32 @@ class RiwayatViewModel : ViewModel() {
         }
     }
 
-    // Fungsi Update Status (FIXED NAME)
-    fun updateStatus(id: Int, status: String) {
+    // 2. Admin: Update Status Pesanan (Diproses -> Dikirim -> Selesai)
+    fun updateStatus(idTransaksi: Int, statusBaru: String) {
         viewModelScope.launch {
             try {
-                // Panggil fungsi yang benar: updateStatusOrder
-                RetrofitClient.instance.updateStatusOrder(id, mapOf("status" to status))
-                loadData() // Refresh list
+                val body = mapOf("status" to statusBaru)
+                RetrofitClient.instance.updateStatusOrder(idTransaksi, body)
+
+                // Refresh data otomatis agar tampilan berubah
+                loadData()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Fungsi Hapus Transaksi (FIXED NAME)
-    fun deleteOrder(id: Int) {
+    // 3. Admin: Hapus Pesanan
+    fun deleteOrder(idTransaksi: Int) {
         viewModelScope.launch {
             try {
-                // Panggil fungsi yang benar: deleteTransaction
-                RetrofitClient.instance.deleteTransaction(id)
-                loadData() // Refresh list
+                RetrofitClient.instance.deleteTransaction(idTransaksi)
+
+                // Refresh data otomatis agar pesanan hilang dari layar
+                loadData()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
-    }
-
-    // Alias untuk compatibility (jika ada file lain yang memanggil)
-    fun checkRoleAndLoad() {
-        loadData()
     }
 }

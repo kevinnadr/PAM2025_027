@@ -11,38 +11,26 @@ import kotlinx.coroutines.launch
 
 class DetailViewModel : ViewModel() {
 
+    // State data produk
     var produk: Produk? by mutableStateOf(null)
+
+    // State loading
     var isLoading by mutableStateOf(false)
 
-    // Variabel untuk menampung pesan error/sukses
-    var statusMessage by mutableStateOf("")
+    // State error message
+    var errorMessage by mutableStateOf("")
 
-    fun getProductById(id: Int) {
+    // ✅ PASTE FUNGSI INI (Inilah yang dicari oleh DetailScreen)
+    fun loadProduk(id: Int) {
         viewModelScope.launch {
             isLoading = true
+            errorMessage = ""
             try {
+                // Panggil API
                 produk = RetrofitClient.instance.getProductById(id)
             } catch (e: Exception) {
                 e.printStackTrace()
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-
-    // UPDATE FUNGSI DELETE
-    fun deleteProduct(id: Int, onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            isLoading = true
-            statusMessage = "" // Reset pesan
-            try {
-                RetrofitClient.instance.deleteProduct(id)
-                statusMessage = "Berhasil Dihapus"
-                onSuccess() // Pindah layar hanya jika sukses
-            } catch (e: Exception) {
-                // Tampilkan error ke layar jika gagal (misal: constraint db)
-                statusMessage = "Gagal Hapus: ${e.message}"
-                e.printStackTrace()
+                errorMessage = "Gagal memuat: ${e.message}"
             } finally {
                 isLoading = false
             }

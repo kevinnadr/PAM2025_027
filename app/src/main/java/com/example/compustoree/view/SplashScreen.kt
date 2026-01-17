@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,53 +22,74 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(
-    onTimeout: () -> Unit // Fungsi yang dipanggil saat waktu habis
+    onTimeout: () -> Unit
 ) {
-    // Timer: Tunggu 2.5 Detik, lalu panggil onTimeout
+    // Logika Timer: Tunggu 3 detik, lalu pindah halaman
     LaunchedEffect(Unit) {
-        delay(2500) // 2500 ms = 2.5 detik
+        delay(3000) // 3000ms = 3 detik
         onTimeout()
     }
 
-    // Tampilan: Logo di Tengah
+    // --- DESAIN UI KEREN ---
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.primary), // Latar Biru/Primary
+            .background(
+                // Membuat Background Gradient (Warna Ungu ke Biru Gelap)
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF6200EA), // Ungu Terang
+                        Color(0xFF304FFE)  // Biru Neon
+                    )
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // Ikon Keranjang Belanja
-            Icon(
-                imageVector = Icons.Default.ShoppingCart,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(100.dp)
-            )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Lingkaran Putih di belakang Icon
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .background(Color.White.copy(alpha = 0.2f), shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(80.dp)
+                )
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Nama Toko
             Text(
                 text = "CompuStore",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = "Toko Komputer Terlengkap",
-                color = Color.LightGray,
-                fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(64.dp))
-
-            // Loading Muter-muter kecil di bawah
-            CircularProgressIndicator(
                 color = Color.White,
-                modifier = Modifier.size(24.dp),
-                strokeWidth = 2.dp
+                letterSpacing = 2.sp
+            )
+
+            Text(
+                text = "Solusi Laptop Terlengkap",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color.White.copy(alpha = 0.8f)
             )
         }
+
+        // Teks Version di paling bawah
+        Text(
+            text = "Versi 1.0.0",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+        )
     }
 }
