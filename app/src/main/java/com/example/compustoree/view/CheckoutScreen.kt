@@ -2,6 +2,8 @@ package com.example.compustoree.view
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,19 +12,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.compustoree.viewmodel.CheckoutViewModel
+import java.text.NumberFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,285 +40,362 @@ fun CheckoutScreen(
 ) {
     val context = LocalContext.current
 
+    // Load data produk saat layar dibuka
     LaunchedEffect(produkId) {
         viewModel.loadProduk(produkId)
     }
 
-    LaunchedEffect(viewModel.statusTransaksi) {
-        if (viewModel.statusTransaksi.contains("Gagal")) {
-            Toast.makeText(context, viewModel.statusTransaksi, Toast.LENGTH_LONG).show()
+    // Handle Pesan Error/Sukses
+    LaunchedEffect(viewModel.message) {
+        if (viewModel.message.isNotEmpty()) {
+            Toast.makeText(context, viewModel.message, Toast.LENGTH_SHORT).show()
         }
     }
 
+    // Ambil data LIVE dari ViewModel agar sinkron
+    val produk = viewModel.produk
+    val subtotal = viewModel.subtotal
+    val ongkir = viewModel.ongkir
+    val totalBayar = viewModel.totalBayar
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Konfirmasi Pesanan") },
+            CenterAlignedTopAppBar(
+                title = { Text("Checkout", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, null) }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.White
+                )
             )
         },
         bottomBar = {
+            // --- BOTTOM BAR STICKY (Tombol Bayar) ---
             Surface(
                 shadowElevation = 16.dp,
                 color = Color.White,
-                modifier = Modifier.fillMaxWidth()
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Total Bayar:", fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Total Pembayaran", fontSize = 12.sp, color = Color.Gray)
+                        // ✅ Memanggil fungsi formatRupiah
                         Text(
-                            "Rp ${formatRupiah(viewModel.totalBayar)}",
+                            "Rp ${formatRupiah(totalBayar)}",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 18.sp
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
                     Button(
-                        onClick = { viewModel.prosesCheckout(onSuccess) },
-                        enabled = !viewModel.isLoading && (viewModel.metodePengiriman == "Ambil Ditempat" || viewModel.alamat.isNotEmpty()),
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(8.dp)
+                        onClick = { viewModel.buatPesanan(onSuccess) },
+                        modifier = Modifier
+                            .height(48.dp)
+                            .width(160.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !viewModel.isLoading && produk != null
                     ) {
                         if (viewModel.isLoading) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                         } else {
-                            Text("BUAT PESANAN SEKARANG")
+                            Text("Bayar Sekarang", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
-        }
+        },
+        containerColor = Color(0xFFF8F9FA) // Background abu-abu muda bersih
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(16.dp)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-
-            val item = viewModel.produk
-            if (item != null) {
-
-                // === 1. DATA BARANG ===
-                Text("Barang yang dibeli", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            // --- PERBAIKAN DI SINI (Pakai ?: "Default") ---
-                            Text(
-                                text = item.nama ?: "Nama Produk Tidak Tersedia",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = "Harga: Rp ${formatRupiah(item.harga ?: 0.0)}",
-                                color = Color.Gray,
-                                fontSize = 14.sp
-                            )
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { viewModel.kurangJumlah() }) {
-                                Icon(Icons.Default.KeyboardArrowDown, null)
-                            }
-                            Text(
-                                text = "${viewModel.jumlahBeli}",
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                            IconButton(onClick = { viewModel.tambahJumlah() }) {
-                                Icon(Icons.Default.KeyboardArrowUp, null)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // === 2. PILIH PENGIRIMAN ===
-                Text("Pilih Pengiriman", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-
-                SelectableItem(
-                    selected = viewModel.metodePengiriman == "Diantar",
-                    title = "Diantar Kurir (JNE/J&T)",
-                    icon = Icons.Default.ShoppingCart,
-                    onClick = { viewModel.metodePengiriman = "Diantar" }
-                )
-
-                SelectableItem(
-                    selected = viewModel.metodePengiriman == "Ambil Ditempat",
-                    title = "Ambil Sendiri di Toko (Pickup)",
-                    icon = Icons.Default.Home,
-                    onClick = { viewModel.metodePengiriman = "Ambil Ditempat" }
-                )
-
-                if (viewModel.metodePengiriman == "Diantar") {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = viewModel.alamat,
-                        onValueChange = { viewModel.alamat = it },
-                        label = { Text("Alamat Lengkap Pengiriman") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        minLines = 2
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE0F7FA))) {
-                        Row(modifier = Modifier.padding(16.dp)) {
-                            Icon(Icons.Default.Info, null, tint = Color(0xFF006064))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Silakan ambil pesanan di: Jl. Komputer Jaya No. 99, Jakarta Pusat.",
-                                fontSize = 12.sp,
-                                color = Color(0xFF006064)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // === 3. METODE PEMBAYARAN ===
-                Text("Metode Pembayaran", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-
-                SelectableItem(
-                    selected = viewModel.metodePembayaran == "Transfer Bank",
-                    title = "Transfer Bank (BCA/Mandiri)",
-                    icon = Icons.Default.Star,
-                    onClick = { viewModel.metodePembayaran = "Transfer Bank" }
-                )
-
-                SelectableItem(
-                    selected = viewModel.metodePembayaran.contains("QRIS"),
-                    title = "QRIS (GoPay/OVO/Dana)",
-                    icon = Icons.Default.Share,
-                    onClick = { viewModel.metodePembayaran = "QRIS / QR Code" }
-                )
-
-                if (viewModel.metodePembayaran.contains("QRIS")) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, Color.LightGray),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("Scan QR Code ini:", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            AsyncImage(
-                                model = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=BayarTagihanCompuStore",
-                                contentDescription = "QRIS Code",
-                                modifier = Modifier.size(200.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("Total: Rp ${formatRupiah(viewModel.totalBayar)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            Text("Otomatis dicek sistem", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                }
-
-                SelectableItem(
-                    selected = viewModel.metodePembayaran.contains("COD"),
-                    title = "COD (Bayar Ditempat)",
-                    icon = Icons.Default.ThumbUp,
-                    onClick = { viewModel.metodePembayaran = "COD (Bayar Ditempat)" }
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-                Text("Informasi Pemesan", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+        if (produk == null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                // --- 1. ALAMAT PENGIRIMAN ---
+                SectionTitle(icon = Icons.Default.LocationOn, title = "Alamat Pengiriman")
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color.LightGray),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Person, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(viewModel.namaUser, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = viewModel.alamat,
+                            onValueChange = { viewModel.alamat = it },
+                            placeholder = { Text("Masukkan alamat lengkap (Jalan, RT/RW, Kota)...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // --- 2. PRODUK YANG DIBELI ---
+                SectionTitle(icon = Icons.Default.ShoppingCart, title = "Detail Pesanan")
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Gambar Produk
+                        AsyncImage(
+                            model = produk.gambar ?: "",
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Info & Quantity
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = produk.nama ?: "Produk",
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            // ✅ Memanggil fungsi formatRupiah
+                            Text(
+                                "Rp ${formatRupiah(produk.harga ?: 0.0)}",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Call, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(viewModel.noHpUser, fontSize = 14.sp)
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Email, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(viewModel.emailUser, fontSize = 14.sp, color = Color.Gray)
+
+                        // Stepper Quantity (+ -)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(Color(0xFFF0F0F0), RoundedCornerShape(8.dp))
+                        ) {
+                            IconButton(
+                                onClick = { if (viewModel.jumlahBeli > 1) viewModel.jumlahBeli-- },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("-", fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                "${viewModel.jumlahBeli}",
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                            IconButton(
+                                onClick = { viewModel.jumlahBeli++ },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("+", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // --- 3. METODE PENGIRIMAN ---
+                SectionTitle(icon = Icons.Default.ShoppingCart, title = "Metode Pengiriman")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    SelectionCard(
+                        text = "JNE",
+                        subText = "Rp 20.000",
+                        selected = viewModel.kurir == "JNE",
+                        onClick = { viewModel.kurir = "JNE" },
+                        modifier = Modifier.weight(1f)
+                    )
+                    SelectionCard(
+                        text = "J&T",
+                        subText = "Rp 15.000",
+                        selected = viewModel.kurir == "J&T",
+                        onClick = { viewModel.kurir = "J&T" },
+                        modifier = Modifier.weight(1f)
+                    )
+                    SelectionCard(
+                        text = "SiCepat",
+                        subText = "Rp 18.000",
+                        selected = viewModel.kurir == "SiCepat",
+                        onClick = { viewModel.kurir = "SiCepat" },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // --- 4. METODE PEMBAYARAN & QR CODE ---
+                SectionTitle(icon = Icons.Default.AccountBox, title = "Metode Pembayaran")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                    PaymentOptionRow("Transfer Bank", viewModel.metodeBayar) { viewModel.metodeBayar = it }
+                    PaymentOptionRow("COD (Bayar di Tempat)", viewModel.metodeBayar) { viewModel.metodeBayar = it }
+                    PaymentOptionRow("E-Wallet (OVO/GoPay/QRIS)", viewModel.metodeBayar) { viewModel.metodeBayar = it }
+
+                    // ✨ FITUR QR CODE DINAMIS ✨
+                    if (viewModel.metodeBayar == "E-Wallet (OVO/GoPay/QRIS)") {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    "Scan QRIS untuk Membayar",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Load QR Code Dinamis
+                                AsyncImage(
+                                    model = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=BayarCompuStore_Rp${viewModel.totalBayar.toInt()}",
+                                    contentDescription = "QR Code Pembayaran",
+                                    modifier = Modifier
+                                        .size(180.dp)
+                                        .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                        .padding(8.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                // ✅ Memanggil fungsi formatRupiah
+                                Text(
+                                    "Total: Rp ${formatRupiah(viewModel.totalBayar)}",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // --- 5. RINGKASAN BIAYA ---
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Subtotal Produk", color = Color.Gray)
+                            // ✅ Memanggil fungsi formatRupiah
+                            Text("Rp ${formatRupiah(subtotal)}")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Ongkos Kirim (${viewModel.kurir})", color = Color.Gray)
+                            // ✅ Memanggil fungsi formatRupiah
+                            Text("Rp ${formatRupiah(ongkir)}")
+                        }
+                        Divider(modifier = Modifier.padding(vertical = 12.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Total Belanja", fontWeight = FontWeight.Bold)
+                            // ✅ Memanggil fungsi formatRupiah
+                            Text("Rp ${formatRupiah(totalBayar)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+
+                // Spacer ekstra agar konten tidak tertutup bottom bar
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
     }
 }
 
-@Composable
-fun SelectableItem(
-    selected: Boolean,
-    title: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    val backgroundColor = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.White
-    val borderColor = if (selected) MaterialTheme.colorScheme.primary else Color.LightGray
+// --- KOMPONEN PENDUKUNG UI (HELPER) ---
 
+@Composable
+fun SectionTitle(icon: ImageVector, title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
+@Composable
+fun SelectionCard(text: String, subText: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        border = BorderStroke(1.dp, borderColor),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.White),
+        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, Color.LightGray),
+        modifier = modifier.clickable { onClick() }
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if(selected) MaterialTheme.colorScheme.primary else Color.Gray
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = title,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                color = if (selected) MaterialTheme.colorScheme.primary else Color.Black
-            )
+            Text(text, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = if(selected) MaterialTheme.colorScheme.primary else Color.Black)
+            Text(subText, fontSize = 10.sp, color = Color.Gray)
         }
     }
+}
+
+@Composable
+fun PaymentOptionRow(title: String, currentSelection: String, onSelect: (String) -> Unit) {
+    val isSelected = currentSelection == title
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White)
+            .border(1.dp, if(isSelected) MaterialTheme.colorScheme.primary else Color(0xFFEEEEEE), RoundedCornerShape(10.dp))
+            .clickable { onSelect(title) }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = isSelected, onClick = { onSelect(title) })
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(title, fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
+// ✅ INI FUNGSI YANG SEBELUMNYA HILANG
+// Dibuat private agar tidak bentrok dengan RiwayatScreen
+private fun formatRupiah(number: Double): String {
+    val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    return format.format(number).replace("Rp", "").trim()
 }
